@@ -63,27 +63,13 @@ async def getFrame(num: int):
     # num in request already -1, so start from 0
     logger.debug(f'api/frame?num={num}')
     try:
-        # return FileResponse(f'../frames/f_{num}.jpg')
-        # print(cap.get(cv.CAP_PROP_FRAME_COUNT))
-        #frame_count = cap.get(cv.CAP_PROP_FRAME_COUNT)
         # if num < 0 or num > frame_count-1:
-        #     return {'error': 'Frame number out of bound'}
+        if num < 0:
+            return {'error': 'Frame number out of bound'}
         cap.set(cv.CAP_PROP_POS_FRAMES, num)
         ret, frame = cap.read()
-        # cv.imwrite(f'../frames/f_{num}.jpg',frame)
         if ret:
             ret, frame_1d = cv.imencode('.jpg', frame) 
-            # print('1d', getsizeof(frame_1d)) 
-            # print('1d', frame_1d) 
-            # frame_1d_int = map(lambda x: int(x), frame_1d)
-            # frame_1d_char = map(lambda x: chr(x), frame_1d)
-            # print('int',getsizeof(frame_1d_int))  
-            # print('int', list(frame_1d_int))
-            # print('json', getsizeof(json.dumps(list(frame_1d_int))))       
-            # print(frame_1d.encode('base64'))
-            # print({'res': json.dumps(list(frame_1d_int))})
-            # return {'res': json.dumps(list(frame_1d_int))}
-            # return {'res': json.dumps(frame_1d.encode('base64'))}
             # return Response(content=frame_1d, media_type='image/jpg')
             headers = {'Content-Disposition': f'inline; filename=f_{num}.jpg'}
             return Response(frame_1d.tobytes() , headers=headers, media_type='image/jpg')
