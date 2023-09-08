@@ -67,7 +67,9 @@ async def getFrame(num: int):
         if num < 0:
             return {'error': 'Frame number out of bound'}
         cap.set(cv.CAP_PROP_POS_FRAMES, num)
+        logger.debug(f'cursor1: {cap.get(cv.CAP_PROP_POS_FRAMES)}')
         ret, frame = cap.read()
+        logger.debug(f'cursor2: {cap.get(cv.CAP_PROP_POS_FRAMES)}')
         if ret:
             ret, frame_1d = cv.imencode('.jpg', frame) 
             # return Response(content=frame_1d, media_type='image/jpg')
