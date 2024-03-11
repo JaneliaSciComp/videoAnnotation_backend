@@ -27,6 +27,7 @@ source env/bin/activate  #activate
 ### Step 3: Run the development server
 
 ```bash
+cd src
 uvicorn main:app --reload
 ```
 
