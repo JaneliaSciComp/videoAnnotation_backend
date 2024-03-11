@@ -30,4 +30,4 @@ source env/bin/activate  #activate
 uvicorn main:app --reload
 ```
 
-Now the server is running on http://127.0.0.1:8000. The client can submit 
+Now the server is running on http://127.0.0.1:8000. 
