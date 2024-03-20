@@ -3,6 +3,7 @@ from sys import getsizeof
 from datetime import datetime
 import logging
 from fastapi import FastAPI, Form
+from pydantic import BaseModel
 from fastapi.responses import FileResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
 import cv2 as cv
@@ -48,6 +49,14 @@ except (Exception, psycopg.DatabaseError) as error:
 
 
 
+######## data model ########
+
+class VideoPath(BaseModel):
+    name: str
+    path: str
+
+
+
 ######## launch api server ########
 app = FastAPI()
 
@@ -71,23 +80,34 @@ def error_handler(err):
     # f.close()
     return {'error': ', '.join(list(err.args))}
 
+
+
 @app.post("/api/videopath")
-async def videopathHandler(video_path: str= Form()):
+async def videopathHandler(video_path: VideoPath):  #str= Form()):
     logger.debug("/api/videopath")
     logger.debug(video_path)
     try:
-        global cap
-        if not os.path.exists(video_path):
-            return {'error': 'Video file does not exist'}
-        if cap:
-            cap.release()
-        cap = cv.VideoCapture(video_path)
-        return {'frame_count': cap.get(cv.CAP_PROP_FRAME_COUNT), 'fps': cap.get(cv.CAP_PROP_FPS)}
+        #TODO: add video to db; check if already exist in db
+
+        # read meta info
+        res = readVideoMetaFromPath(video_path.path)
+        return res
     except Exception as e:
         print('error')
         return error_handler(e)
-    
 
+
+# @app.get("/api/videometa/{video_path:path}")
+# async def getVideoMeta(video_path: str):
+#     logger.debug("/api/videometa")
+#     logger.debug(video_path)
+#     try:
+#         res = readVideoMetaFromPath(video_path)
+#         return res
+#     except Exception as e:
+#         print('error')
+#         return error_handler(e)
+    
 
 @app.get('/api/frame')
 async def getFrame(num: int):
@@ -112,4 +132,22 @@ async def getFrame(num: int):
         print('error')
         return error_handler(e)
     
+
+
+
+
+######## helper function ########
+def readVideoMetaFromPath(path):
+    # read meta info
+    try:
+        global cap
+        if not os.path.exists(path):
+            return {'error': 'Video file does not exist'}
+        if cap:
+            cap.release()
+        cap = cv.VideoCapture(path)
+        return {'frame_count': cap.get(cv.CAP_PROP_FRAME_COUNT), 'fps': cap.get(cv.CAP_PROP_FPS)}
+    except Exception as e:
+        print('error')
+        return error_handler(e)
 
