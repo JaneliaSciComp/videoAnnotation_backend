@@ -10,6 +10,7 @@ import cv2 as cv
 import json
 import psycopg
 from configparser import ConfigParser
+from typing import Union, List
 
 
 #set up logger
@@ -50,10 +51,14 @@ except (Exception, psycopg.DatabaseError) as error:
 
 
 ######## data model ########
-
+class AdditionalField(BaseModel):
+    name: str
+    value: Union[str, None] = None
+    
 class VideoPath(BaseModel):
     name: str
     path: str
+    additionalFields: List[AdditionalField] = []
 
 
 
