@@ -55,7 +55,8 @@ class AdditionalField(BaseModel):
     name: str
     value: Union[str, None] = None
     
-class VideoPath(BaseModel):
+class VideoInfoObj(BaseModel):
+    videoId: str
     name: str
     path: str
     additionalFields: List[AdditionalField] = []
@@ -78,24 +79,18 @@ app.add_middleware(
 )
 
 
-def error_handler(err):
-    logger.error(err)
-    # f = open('../log/log.txt','a')
-    # traceback.print_exc(file=f)
-    # f.close()
-    return {'error': ', '.join(list(err.args))}
 
 
 
 @app.post("/api/videopath")
-async def videopathHandler(video_path: VideoPath):  #str= Form()):
+async def videopathHandler(video_info_obj: VideoInfoObj):  #str= Form()):
     logger.debug("/api/videopath")
-    logger.debug(video_path)
+    logger.debug(video_info_obj)
     try:
-        #TODO: add video to db; check if already exist in db
+        #TODO: add video info data to db; check if already exist in db
 
         # read meta info
-        res = readVideoMetaFromPath(video_path.path)
+        res = readVideoMetaFromPath(video_info_obj.path)
         return res
     except Exception as e:
         print('error')
@@ -138,10 +133,34 @@ async def getFrame(num: int):
         return error_handler(e)
     
 
+@app.get('/api/additional-data/{name}')
+async def getAdditionalData(name: str, videoId: str, num: int):
+    # num in request already -1, so start from 0
+    logger.debug(f'api/additional-data/{name}?videoId={videoId}&num={num}')
+    try:
+        # if num < 0 or num > frame_count-1:
+        if num < 0:
+            return {'error': 'Frame number out of bound'}
+        #TODO: read and return data
+
+        # else:
+        #     return {'error': f'Frame {num+1} reached video end'}
+    except Exception as e:
+        print('error')
+        return error_handler(e)
 
 
 
 ######## helper function ########
+
+def error_handler(err):
+    logger.error(err)
+    # f = open('../log/log.txt','a')
+    # traceback.print_exc(file=f)
+    # f.close()
+    return {'error': ', '.join(list(err.args))}
+
+
 def readVideoMetaFromPath(path):
     # read meta info
     try:
