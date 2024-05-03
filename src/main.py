@@ -8,7 +8,8 @@ from fastapi.responses import FileResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
 import cv2 as cv
 import json
-import psycopg
+# import psycopg
+from motor import motor_asyncio
 from configparser import ConfigParser
 from typing import Union, List
 
@@ -20,33 +21,6 @@ log_handler = logging.StreamHandler()
 # to print out source code location: %(pathname)s %(lineno)d:
 log_handler.setFormatter(logging.Formatter('%(asctime)s | %(levelname)s: %(message)s'))
 logger.addHandler(log_handler)
-
-
-######### create connection to db ########
-def config(filename='../database.ini', section='postgresql'): 
-    #section matches the section name, the first line, in database.int
-    parser = ConfigParser()
-    parser.read(filename)
-    db_params = {}
-    if parser.has_section(section):
-        params = parser.items(section)
-        for param in params:
-            db_params[param[0]] = param[1]
-    else:
-        raise Exception(f'Section {section} not found in the {filename} file')
-    return db_params
-
-
-try:
-    params = config()
-    logger.info('Connecting to the PostgreSQL database...')
-    conn = psycopg.connect(**params)
-    cur = conn.cursor()
-    cur.execute('SELECT current_schema()')
-    schema = cur.fetchone()
-    logger.info(f'Current schema: {schema}')
-except (Exception, psycopg.DatabaseError) as error:
-    logger.error(error)
 
 
 
@@ -66,7 +40,6 @@ class VideoInfoObj(BaseModel):
 ######## launch api server ########
 app = FastAPI()
 
-cap = None
 
 # for CORS, backend server allow these origins to send request and access the response
 origins = ['http://localhost:3000']
@@ -79,8 +52,57 @@ app.add_middleware(
 )
 
 
+######### create connection to db ########
+def config(section, filename='../database.ini'): 
+    #section matches the section name, the first line, in database.int
+    parser = ConfigParser()
+    parser.read(filename)
+    db_params = {}
+    if parser.has_section(section):
+        params = parser.items(section)
+        for param in params:
+            db_params[param[0]] = param[1]
+    else:
+        raise Exception(f'Section {section} not found in the {filename} file')
+    return db_params
 
 
+@app.on_event("startup")
+async def startup_db_client():
+    # for postgreSQL
+    # try:
+    #     params = config('postgresql')
+    #     logger.info('Connecting to the PostgreSQL database...')
+    #     conn = psycopg.connect(**params)
+    #     cur = conn.cursor()
+    #     cur.execute('SELECT current_schema()')
+    #     schema = cur.fetchone()
+    #     logger.info(f'Current schema: {schema}')
+    # except (Exception, psycopg.DatabaseError) as error:
+    #     logger.error(error)
+
+    try:
+        settings = config('mongodb')
+        url = f"mongodb://{settings['user']}:{settings['password']}@{settings['host']}"
+        app.mongodb_client = motor_asyncio.AsyncIOMotorClient(url)
+        app.mongodb = app.mongodb_client[settings['dbname']]
+    except Exception as e:
+        logger.info('error', e)
+
+
+@app.on_event("shutdown")
+async def shutdown_db_client():
+    try:
+        app.mongodb_client.close()
+    except Exception as e:
+        logger.info('error', e)
+
+
+
+
+######### routes ########
+
+cap = None
 
 @app.post("/api/videopath")
 async def videopathHandler(video_info_obj: VideoInfoObj):  #str= Form()):
