@@ -3,7 +3,7 @@ from sys import getsizeof
 from datetime import datetime
 import logging
 from fastapi import FastAPI, Form
-from pydantic import BaseModel
+from pydantic import BaseModel, BeforeValidator, Field
 from fastapi.responses import FileResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
 import cv2 as cv
@@ -12,6 +12,8 @@ import json
 from motor import motor_asyncio
 from configparser import ConfigParser
 from typing import Union, List
+from typing_extensions import Annotated
+from contextlib import asynccontextmanager
 
 
 #set up logger
@@ -25,31 +27,19 @@ logger.addHandler(log_handler)
 
 
 ######## data model ########
+PyObjectId = Annotated[str, BeforeValidator(str)]
+
 class AdditionalField(BaseModel):
     name: str
     value: Union[str, None] = None
     
 class VideoInfoObj(BaseModel):
-    videoId: str
+    videoId: PyObjectId = Field(alias="_id")
     name: str
     path: str
     additionalFields: List[AdditionalField] = []
 
 
-
-######## launch api server ########
-app = FastAPI()
-
-
-# for CORS, backend server allow these origins to send request and access the response
-origins = ['http://localhost:3000']
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=origins,
-    allow_credentials=True,
-    allow_methods=['*'],
-    allow_headers=['*'],
-)
 
 
 ######### create connection to db ########
@@ -67,10 +57,11 @@ def config(section, filename='../database.ini'):
     return db_params
 
 
-@app.on_event("startup")
-async def startup_db_client():
-    # for postgreSQL
-    # try:
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # connect to db
+    try:
+        # for postgreSQL
     #     params = config('postgresql')
     #     logger.info('Connecting to the PostgreSQL database...')
     #     conn = psycopg.connect(**params)
@@ -78,24 +69,65 @@ async def startup_db_client():
     #     cur.execute('SELECT current_schema()')
     #     schema = cur.fetchone()
     #     logger.info(f'Current schema: {schema}')
-    # except (Exception, psycopg.DatabaseError) as error:
-    #     logger.error(error)
-
-    try:
+        
+        # for mongodb
         settings = config('mongodb')
         url = f"mongodb://{settings['user']}:{settings['password']}@{settings['host']}"
-        app.mongodb_client = motor_asyncio.AsyncIOMotorClient(url)
-        app.mongodb = app.mongodb_client[settings['dbname']]
+        client = motor_asyncio.AsyncIOMotorClient(url)
+        app.mongodb = client.get_database(settings['dbname'])
+        app.mongodb.project_config = app.mongodb.get_collection("configuration")
+    
+        yield
+        # disconnect with db
+        client.close()
     except Exception as e:
         logger.info('error', e)
 
+# @app.on_event("startup")
+# async def startup_db_client():
+#     # for postgreSQL
+#     # try:
+#     #     params = config('postgresql')
+#     #     logger.info('Connecting to the PostgreSQL database...')
+#     #     conn = psycopg.connect(**params)
+#     #     cur = conn.cursor()
+#     #     cur.execute('SELECT current_schema()')
+#     #     schema = cur.fetchone()
+#     #     logger.info(f'Current schema: {schema}')
+#     # except (Exception, psycopg.DatabaseError) as error:
+#     #     logger.error(error)
 
-@app.on_event("shutdown")
-async def shutdown_db_client():
-    try:
-        app.mongodb_client.close()
-    except Exception as e:
-        logger.info('error', e)
+#     try:
+#         settings = config('mongodb')
+#         url = f"mongodb://{settings['user']}:{settings['password']}@{settings['host']}"
+#         app.mongodb_client = motor_asyncio.AsyncIOMotorClient(url)
+#         app.mongodb = app.mongodb_client[settings['dbname']]
+#     except Exception as e:
+#         logger.info('error', e)
+
+
+# @app.on_event("shutdown")
+# async def shutdown_db_client():
+#     try:
+#         app.mongodb_client.close()
+#     except Exception as e:
+#         logger.info('error', e)
+
+
+
+######## launch api server ########
+app = FastAPI(lifespan=lifespan)
+
+
+# for CORS, backend server allow these origins to send request and access the response
+origins = ['http://localhost:3000']
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=['*'],
+    allow_headers=['*'],
+)
 
 
 
