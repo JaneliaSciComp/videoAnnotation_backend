@@ -2,7 +2,7 @@ import os
 from sys import getsizeof
 from datetime import datetime
 import logging
-from fastapi import FastAPI, Form
+from fastapi import FastAPI, Form, status
 from pydantic import BaseModel, BeforeValidator, Field
 from fastapi.responses import FileResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
@@ -35,7 +35,8 @@ class AdditionalField(BaseModel):
     
 class VideoInfoObj(BaseModel):
     videoId: PyObjectId = Field(alias="_id")
-    name: str
+    projectId: PyObjectId
+    name: str = Field(max_length=200)
     path: str
     additionalFields: List[AdditionalField] = []
 
@@ -136,12 +137,19 @@ app.add_middleware(
 
 cap = None
 
-@app.post("/api/videopath")
+@app.post(
+    "/api/video",
+    response_description="Add new video",
+    response_model=VideoInfoObj,
+    status_code=status.HTTP_201_CREATED,
+    response_model_by_alias=False,
+)
 async def videopathHandler(video_info_obj: VideoInfoObj):  #str= Form()):
-    logger.debug("/api/videopath")
+    logger.debug("/api/video")
     logger.debug(video_info_obj)
     try:
         #TODO: add video info data to db; check if already exist in db
+        print(video_info_obj.model_dump(by_alias=True)) #, exclude=["id"]
 
         # read meta info
         res = readVideoMetaFromPath(video_info_obj.path)
