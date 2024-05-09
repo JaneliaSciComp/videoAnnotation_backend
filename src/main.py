@@ -33,8 +33,8 @@ class AdditionalField(BaseModel):
     name: str
     value: Union[str, None] = None
     
-class VideoInfoObj(BaseModel):
-    videoId: PyObjectId = Field(alias="_id")
+class VideoConfigObj(BaseModel):
+    videoId: PyObjectId = Field(serialization_alias="_id")
     projectId: PyObjectId
     name: str = Field(max_length=200)
     path: str
@@ -77,6 +77,7 @@ async def lifespan(app: FastAPI):
         client = motor_asyncio.AsyncIOMotorClient(url)
         app.mongodb = client.get_database(settings['dbname'])
         app.mongodb.project_config = app.mongodb.get_collection("configuration")
+        app.mongodb.video = app.mongodb.get_collection("video")
     
         yield
         # disconnect with db
@@ -140,35 +141,44 @@ cap = None
 @app.post(
     "/api/video",
     response_description="Add new video",
-    response_model=VideoInfoObj,
+    # response_model=VideoInfoObj,
     status_code=status.HTTP_201_CREATED,
-    response_model_by_alias=False,
+    # response_model_by_alias=False,
 )
-async def videopathHandler(video_info_obj: VideoInfoObj):  #str= Form()):
-    logger.debug("/api/video")
-    logger.debug(video_info_obj)
+async def postVideoHandler(video_config_obj: VideoConfigObj):  #str= Form()):
+    logger.debug("Post: /api/video")
+    # logger.debug(video_config_obj)
     try:
-        #TODO: add video info data to db; check if already exist in db
-        print(video_info_obj.model_dump(by_alias=True)) #, exclude=["id"]
+        # print(video_config_obj.model_dump(by_alias=True)) # {'_id': '...', 'projectId': 'testId', 'name': '/Users/pengxi/video/numbered.mp4', 'path': '/Users/pengxi/video/numbered.mp4', 'additionalFields': []}
+        videoId = video_config_obj.videoId
+        existing_video = await app.mongodb.video.find_one({"_id": videoId})
+        if existing_video is None:
+            new_video = await app.mongodb.video.insert_one(
+                video_config_obj.model_dump(by_alias=True)
+                )
+            # print(new_video) # InsertOneResult('1715271938193', acknowledged=True)
 
+        return new_video.inserted_id
+        
         # read meta info
-        res = readVideoMetaFromPath(video_info_obj.path)
+        res = readVideoMetaFromPath(video_config_obj.path)
         return res
     except Exception as e:
         print('error')
         return error_handler(e)
 
 
-# @app.get("/api/videometa/{video_path:path}")
-# async def getVideoMeta(video_path: str):
-#     logger.debug("/api/videometa")
-#     logger.debug(video_path)
-#     try:
-#         res = readVideoMetaFromPath(video_path)
-#         return res
-#     except Exception as e:
-#         print('error')
-#         return error_handler(e)
+@app.get("/api/video")
+async def getVideoMeta(id: str):
+    logger.debug(f"Get: /api/video?id={id}")
+    try:
+        res = await app.mongodb.video.find_one({"_id": id}, { "_id": 0, "path": 1 })
+        print(res, res['path'])
+        res = readVideoMetaFromPath(res['path'])
+        return res
+    except Exception as e:
+        print('error')
+        return error_handler(e)
     
 
 @app.get('/api/frame')
@@ -204,7 +214,7 @@ async def getAdditionalData(name: str, videoId: str, num: int):
         if num < 0:
             return {'error': 'Frame number out of bound'}
         #TODO: read and return data
-
+        return 'currently no data'
         # else:
         #     return {'error': f'Frame {num+1} reached video end'}
     except Exception as e:
