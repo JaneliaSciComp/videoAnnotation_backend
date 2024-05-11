@@ -2,7 +2,7 @@ import os
 from sys import getsizeof
 from datetime import datetime
 import logging
-from fastapi import FastAPI, Form, status
+from fastapi import FastAPI, Form, status, HTTPException
 from pydantic import BaseModel, BeforeValidator, Field
 from fastapi.responses import FileResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
@@ -10,6 +10,7 @@ import cv2 as cv
 import json
 # import psycopg
 from motor import motor_asyncio
+from pymongo import ReturnDocument
 from configparser import ConfigParser
 from typing import Union, List
 from typing_extensions import Annotated
@@ -27,15 +28,15 @@ logger.addHandler(log_handler)
 
 
 ######## data model ########
-PyObjectId = Annotated[str, BeforeValidator(str)]
+ObjectId = Annotated[str, BeforeValidator(str)]
 
 class AdditionalField(BaseModel):
     name: str
     value: Union[str, None] = None
     
 class VideoConfigObj(BaseModel):
-    videoId: PyObjectId = Field(serialization_alias="_id")
-    projectId: PyObjectId
+    videoId: ObjectId = Field(serialization_alias="_id")
+    projectId: ObjectId
     name: str = Field(max_length=200)
     path: str
     additionalFields: List[AdditionalField] = []
@@ -85,36 +86,6 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.info('error', e)
 
-# @app.on_event("startup")
-# async def startup_db_client():
-#     # for postgreSQL
-#     # try:
-#     #     params = config('postgresql')
-#     #     logger.info('Connecting to the PostgreSQL database...')
-#     #     conn = psycopg.connect(**params)
-#     #     cur = conn.cursor()
-#     #     cur.execute('SELECT current_schema()')
-#     #     schema = cur.fetchone()
-#     #     logger.info(f'Current schema: {schema}')
-#     # except (Exception, psycopg.DatabaseError) as error:
-#     #     logger.error(error)
-
-#     try:
-#         settings = config('mongodb')
-#         url = f"mongodb://{settings['user']}:{settings['password']}@{settings['host']}"
-#         app.mongodb_client = motor_asyncio.AsyncIOMotorClient(url)
-#         app.mongodb = app.mongodb_client[settings['dbname']]
-#     except Exception as e:
-#         logger.info('error', e)
-
-
-# @app.on_event("shutdown")
-# async def shutdown_db_client():
-#     try:
-#         app.mongodb_client.close()
-#     except Exception as e:
-#         logger.info('error', e)
-
 
 
 ######## launch api server ########
@@ -156,26 +127,86 @@ async def postVideoHandler(video_config_obj: VideoConfigObj):  #str= Form()):
             new_video = await app.mongodb.video.insert_one(
                 video_config_obj.model_dump(by_alias=True)
                 )
+            check = await app.mongodb.video.find_one({"_id": new_video.inserted_id})
+            print(check)
             # print(new_video) # InsertOneResult('1715271938193', acknowledged=True)
-
-        return new_video.inserted_id
+            return {'success': f'Inserted video {new_video.inserted_id}'}
+        else:
+            return {'info': 'Video already exists'}
         
-        # read meta info
-        res = readVideoMetaFromPath(video_config_obj.path)
-        return res
+        
     except Exception as e:
         print('error')
         return error_handler(e)
 
 
 @app.get("/api/video")
-async def getVideoMeta(id: str):
+async def getVideoHandler(id: ObjectId):
     logger.debug(f"Get: /api/video?id={id}")
     try:
         res = await app.mongodb.video.find_one({"_id": id}, { "_id": 0, "path": 1 })
         print(res, res['path'])
-        res = readVideoMetaFromPath(res['path'])
-        return res
+        path = res['path']
+        # res = readVideoMetaFromPath(res['path'])
+        # return res
+        global cap
+        if not os.path.exists(path):
+            return {'error': 'Video file does not exist'}
+        if cap:
+            cap.release()
+        cap = cv.VideoCapture(path)
+        return {'frame_count': cap.get(cv.CAP_PROP_FRAME_COUNT), 'fps': cap.get(cv.CAP_PROP_FPS)}
+    except Exception as e:
+        print('error')
+        return error_handler(e)
+
+
+@app.put(
+    "/api/video",
+    response_description="Edit video",
+    # response_model=VideoConfigObj,
+    # response_model_by_alias=False,
+)
+async def editVideoHandler(new_video_obj: VideoConfigObj):  #str= Form()):
+    logger.debug("Put: /api/video")
+    # logger.debug(video_config_obj)
+    try:
+        # print(video_config_obj.model_dump(by_alias=True)) # {'_id': '...', 'projectId': 'testId', 'name': '/Users/pengxi/video/numbered.mp4', 'path': '/Users/pengxi/video/numbered.mp4', 'additionalFields': []}
+        new_data = new_video_obj.model_dump(by_alias=True)
+        update_result = await app.mongodb.video.find_one_and_update(            
+            {"_id": new_data['_id']},
+            {"$set": new_data},
+            return_document=ReturnDocument.AFTER,
+        )
+        print(update_result)
+        if update_result is not None:
+            return update_result
+        else:
+            return {'error': 'Editing failed'}
+
+    except Exception as e:
+        print('error')
+        return error_handler(e)
+
+
+@app.delete(
+    "/api/video",
+    response_description="Edit video",
+    # response_model=VideoConfigObj,
+    # response_model_by_alias=False,
+)
+async def deleteVideoHandler(id: ObjectId):  #str= Form()):
+    logger.debug(f"Delete: /api/video?id={id}")
+    # logger.debug(video_config_obj)
+    try:
+        # print(video_config_obj.model_dump(by_alias=True)) # {'_id': '...', 'projectId': 'testId', 'name': '/Users/pengxi/video/numbered.mp4', 'path': '/Users/pengxi/video/numbered.mp4', 'additionalFields': []}
+        delete_result = await app.mongodb.video.delete_one({"_id": ObjectId(id)})
+        print(delete_result, delete_result.deleted_count)
+        if delete_result.deleted_count == 1:
+            return {'success': f'Deleted video {id}'}
+        else:
+            return {'error': 'Deleting video failed.'}
+
     except Exception as e:
         print('error')
         return error_handler(e)
@@ -233,17 +264,17 @@ def error_handler(err):
     return {'error': ', '.join(list(err.args))}
 
 
-def readVideoMetaFromPath(path):
-    # read meta info
-    try:
-        global cap
-        if not os.path.exists(path):
-            return {'error': 'Video file does not exist'}
-        if cap:
-            cap.release()
-        cap = cv.VideoCapture(path)
-        return {'frame_count': cap.get(cv.CAP_PROP_FRAME_COUNT), 'fps': cap.get(cv.CAP_PROP_FPS)}
-    except Exception as e:
-        print('error')
-        return error_handler(e)
+# def readVideoMetaFromPath(path):
+#     # read meta info
+#     try:
+#         global cap
+#         if not os.path.exists(path):
+#             return {'error': 'Video file does not exist'}
+#         if cap:
+#             cap.release()
+#         cap = cv.VideoCapture(path)
+#         return {'frame_count': cap.get(cv.CAP_PROP_FRAME_COUNT), 'fps': cap.get(cv.CAP_PROP_FPS)}
+#     except Exception as e:
+#         print('error')
+#         return error_handler(e)
 
