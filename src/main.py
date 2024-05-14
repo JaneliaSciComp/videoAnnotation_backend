@@ -3,7 +3,7 @@ from sys import getsizeof
 from datetime import datetime
 import logging
 from fastapi import FastAPI, Form, status, HTTPException
-from pydantic import BaseModel, BeforeValidator, Field
+# from pydantic import BaseModel, BeforeValidator, Field
 from fastapi.responses import FileResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
 import cv2 as cv
@@ -12,9 +12,10 @@ import json
 from motor import motor_asyncio
 from pymongo import ReturnDocument
 from configparser import ConfigParser
-from typing import Union, List
-from typing_extensions import Annotated
+# from typing import Union, List
+# from typing_extensions import Annotated
 from contextlib import asynccontextmanager
+from datamodel import ObjectId, ProjectConfigObj, ProjectCollection, VideoConfigObj, AdditionalField
 
 
 #set up logger
@@ -24,22 +25,6 @@ log_handler = logging.StreamHandler()
 # to print out source code location: %(pathname)s %(lineno)d:
 log_handler.setFormatter(logging.Formatter('%(asctime)s | %(levelname)s: %(message)s'))
 logger.addHandler(log_handler)
-
-
-
-######## data model ########
-ObjectId = Annotated[str, BeforeValidator(str)]
-
-class AdditionalField(BaseModel):
-    name: str
-    value: Union[str, None] = None
-    
-class VideoConfigObj(BaseModel):
-    videoId: ObjectId = Field(serialization_alias="_id")
-    projectId: ObjectId
-    name: str = Field(max_length=200)
-    path: str
-    additionalFields: List[AdditionalField] = []
 
 
 
@@ -107,6 +92,75 @@ app.add_middleware(
 
 ######### routes ########
 
+@app.post(
+    "/api/project",
+    response_description="Add new project",
+    # response_model=VideoInfoObj,
+    status_code=status.HTTP_201_CREATED,
+    # response_model_by_alias=False,
+)
+async def postProjectHandler(project_config_obj: ProjectConfigObj):  #str= Form()):
+    logger.debug("Post: /api/project")
+    # logger.debug(video_config_obj)
+    try:
+        return await post_obj_mongo(project_config_obj, 'project')
+    
+    except Exception as e:
+        print('error')
+        return error_handler(e)
+
+@app.put(
+    "/api/project",
+    response_description="Edit project",
+    # response_model=VideoConfigObj,
+    # response_model_by_alias=False,
+)
+async def editProjectHandler(new_project_obj: ProjectConfigObj):  #str= Form()):
+    logger.debug("Put: /api/project")
+    # logger.debug(project_config_obj)
+    try:
+        # print(project_config_obj.model_dump(by_alias=True)) # {'_id': '...', 'projectId': 'testId', 'name': '/Users/pengxi/video/numbered.mp4', 'path': '/Users/pengxi/video/numbered.mp4', 'additionalFields': []}
+        return await edit_obj_mongo(new_project_obj, 'project')
+    except Exception as e:
+        print('error')
+        return error_handler(e)
+
+@app.get("/api/projects",
+         response_description="List all projects",
+         response_model=ProjectCollection,
+         response_model_by_alias=False)
+async def getAllProjectsHandler():
+    logger.debug("Get: /api/projects")
+    try:
+        res = await app.mongodb.project.find().to_list(None)
+        # print(res)
+        if res is None or len(res)==0:
+            return {'error': 'No project is found.'}
+        else:
+            return ProjectCollection(projects=res) 
+    except Exception as e:
+        print('error')
+        return error_handler(e)
+
+@app.get("/api/project",
+         response_description="Find one project",
+         response_model=ProjectConfigObj,
+         response_model_by_alias=False)
+async def getProject(id: ObjectId):
+    logger.debug(f"Get: /api/project?id={id}")
+    try:
+        res = await app.mongodb.project.find_one({"_id": id})
+        print(res)
+        if res is None:
+            return {'error': 'No project is found'}
+        return res
+    except Exception as e:
+        print('error')
+        return error_handler(e)
+
+
+
+
 cap = None
 
 @app.post(
@@ -121,31 +175,20 @@ async def postVideoHandler(video_config_obj: VideoConfigObj):  #str= Form()):
     # logger.debug(video_config_obj)
     try:
         # print(video_config_obj.model_dump(by_alias=True)) # {'_id': '...', 'projectId': 'testId', 'name': '/Users/pengxi/video/numbered.mp4', 'path': '/Users/pengxi/video/numbered.mp4', 'additionalFields': []}
-        videoId = video_config_obj.videoId
-        existing_video = await app.mongodb.video.find_one({"_id": videoId})
-        if existing_video is None:
-            new_video = await app.mongodb.video.insert_one(
-                video_config_obj.model_dump(by_alias=True)
-                )
-            check = await app.mongodb.video.find_one({"_id": new_video.inserted_id})
-            print(check)
-            # print(new_video) # InsertOneResult('1715271938193', acknowledged=True)
-            return {'success': f'Inserted video {new_video.inserted_id}'}
-        else:
-            return {'info': 'Video already exists'}
-        
-        
+       return await post_obj_mongo(video_config_obj, 'video')
     except Exception as e:
         print('error')
         return error_handler(e)
 
 
-@app.get("/api/video")
+@app.get("/api/videometa")
 async def getVideoHandler(id: ObjectId):
-    logger.debug(f"Get: /api/video?id={id}")
+    logger.debug(f"Get: /api/videometa?id={id}")
     try:
         res = await app.mongodb.video.find_one({"_id": id}, { "_id": 0, "path": 1 })
         print(res, res['path'])
+        if res is None:
+            return {'error': 'No video is found'}
         path = res['path']
         # res = readVideoMetaFromPath(res['path'])
         # return res
@@ -172,18 +215,7 @@ async def editVideoHandler(new_video_obj: VideoConfigObj):  #str= Form()):
     # logger.debug(video_config_obj)
     try:
         # print(video_config_obj.model_dump(by_alias=True)) # {'_id': '...', 'projectId': 'testId', 'name': '/Users/pengxi/video/numbered.mp4', 'path': '/Users/pengxi/video/numbered.mp4', 'additionalFields': []}
-        new_data = new_video_obj.model_dump(by_alias=True)
-        update_result = await app.mongodb.video.find_one_and_update(            
-            {"_id": new_data['_id']},
-            {"$set": new_data},
-            return_document=ReturnDocument.AFTER,
-        )
-        print(update_result)
-        if update_result is not None:
-            return update_result
-        else:
-            return {'error': 'Editing failed'}
-
+        return await edit_obj_mongo(new_video_obj, 'video')
     except Exception as e:
         print('error')
         return error_handler(e)
@@ -278,3 +310,76 @@ def error_handler(err):
 #         print('error')
 #         return error_handler(e)
 
+
+async def post_obj_mongo(obj, type):
+    ''' type: 'project', 'video', 'btn', 'annotation' '''
+    if type=='project':
+        id = obj.projectId
+        collection = app.mongodb.project
+    elif type=='video':
+        id = obj.videoId
+        collection = app.mongodb.video
+    elif type=='btn':
+        id = obj.btnGroupId
+        collection = app.mongodb.btn
+    elif type=='annotation':
+        id = obj.annotationId
+        collection = app.mongodb.annotation
+
+    existing_obj = await collection.find_one({"_id": id})
+    if existing_obj is None:
+        new_obj = await collection.insert_one(
+            obj.model_dump(by_alias=True)
+            )
+        check = await collection.find_one({"_id": new_obj.inserted_id})
+        print(check)
+        # print(new_video) # InsertOneResult('1715271938193', acknowledged=True)
+        return {'success': f'Inserted {type} {new_obj.inserted_id}'}
+    else:
+        return {'info': f'{type} already exists'}
+
+
+async def edit_obj_mongo(obj, type):
+    if type=='project':
+        collection = app.mongodb.project
+    elif type=='video':
+        collection = app.mongodb.video
+    elif type=='btn':
+        collection = app.mongodb.btn
+    elif type=='annotation':
+        collection = app.mongodb.annotation
+    
+    new_data = obj.model_dump(by_alias=True)
+    update_result = await collection.find_one_and_update(            
+        {"_id": new_data['_id']},
+        {"$set": new_data},
+        return_document=ReturnDocument.AFTER,
+    )
+    print(update_result)
+    if update_result is not None:
+        return update_result
+    else:
+        return {'error': f'Editing {type} failed'}
+
+
+# async def get_all_of_collection_mongo(type):
+#     if type=='project':
+#         collection = app.mongodb.project
+#     elif type=='video':
+#         collection = app.mongodb.video
+#     elif type=='btn':
+#         collection = app.mongodb.btn
+#     elif type=='annotation':
+#         collection = app.mongodb.annotation
+    
+#     new_data = obj.model_dump(by_alias=True)
+#     update_result = await collection.find_one_and_update(            
+#         {"_id": new_data['_id']},
+#         {"$set": new_data},
+#         return_document=ReturnDocument.AFTER,
+#     )
+#     print(update_result)
+#     if update_result is not None:
+#         return update_result
+#     else:
+#         return {'error': f'Editing {type} failed'}
