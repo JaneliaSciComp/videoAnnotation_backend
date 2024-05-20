@@ -103,7 +103,7 @@ async def postProjectHandler(project_config_obj: ProjectFromClient):  #str= Form
     logger.debug("Post: /api/project")
     # logger.debug(video_config_obj)
     try:
-        return await post_obj_mongo(project_config_obj, 'project')
+        return await post_one_obj_mongo(project_config_obj, 'project')
     
     except Exception as e:
         print('error')
@@ -120,9 +120,9 @@ async def editProjectHandler(new_project_obj: ProjectFromClient):  #str= Form())
     # logger.debug(project_config_obj)
     try:
         # print(project_config_obj.model_dump(by_alias=True)) # {'_id': '...', 'projectId': 'testId', 'name': '/Users/pengxi/video/numbered.mp4', 'path': '/Users/pengxi/video/numbered.mp4', 'additionalFields': []}
-        res = await edit_obj_mongo(new_project_obj, 'project')
+        res = await edit_one_obj_mongo(new_project_obj, 'project')
         if res.get('error'): # possibly there is no existing project thus editing failed
-            post_res = await post_obj_mongo(new_project_obj, 'project')
+            post_res = await post_one_obj_mongo(new_project_obj, 'project')
             return post_res
         return res
     except Exception as e:
@@ -162,6 +162,21 @@ async def getProject(id: ObjectId):
         print('error')
         return error_handler(e)
 
+@app.delete(
+    "/api/project",
+    response_description="Delete one project"
+)
+async def deleteProjectHandler(id: ObjectId):  
+    logger.debug(f"Delete: /api/project?id={id}")
+    # logger.debug(video_config_obj)
+    try:
+        # print(video_config_obj.model_dump(by_alias=True)) # {'_id': '...', 'projectId': 'testId', 'name': '/Users/pengxi/video/numbered.mp4', 'path': '/Users/pengxi/video/numbered.mp4', 'additionalFields': []}
+        return await delete_one_obj_mongo(id, 'project')
+
+    except Exception as e:
+        print('error')
+        return error_handler(e)
+
 
 @app.post(
     "/api/btn",
@@ -175,10 +190,10 @@ async def postBtnHandler(btn_group_obj: BtnGroupFromClient):
     # logger.debug(btn_group_obj)
     try:
         print(btn_group_obj)
-        res = await post_obj_mongo(btn_group_obj, 'btn')
+        res = await post_one_obj_mongo(btn_group_obj, 'btn')
         print('post btn res: ', res)
         if res.get('info') == 'btn already exists':
-            edit_res = await edit_obj_mongo(btn_group_obj, 'btn')
+            edit_res = await edit_one_obj_mongo(btn_group_obj, 'btn')
             return edit_res
         return res
     except Exception as e:
@@ -194,24 +209,37 @@ async def deleteBtnGroupHandler(btnGroupId: ObjectId):  #str= Form()):
     # logger.debug(video_config_obj)
     try:
         # print(video_config_obj.model_dump(by_alias=True)) # {'_id': '...', 'projectId': 'testId', 'name': '/Users/pengxi/video/numbered.mp4', 'path': '/Users/pengxi/video/numbered.mp4', 'additionalFields': []}
-        return await delete_obj_mongo(btnGroupId, 'btn')
-
+        return await delete_one_obj_mongo(btnGroupId, 'btn')
     except Exception as e:
         print('error')
         return error_handler(e)
 
-@app.get("/api/btn",
+@app.get("/api/btns",
          response_description="Find project btn configuration data",
          response_model=BtnGroupCollection,
          response_model_by_alias=False)
 async def getProjectBtn(projectId: ObjectId):
-    logger.debug(f"Get: /api/btn?projectId={projectId}")
+    logger.debug(f"Get: /api/btns?projectId={projectId}")
     try:
         res = await app.mongodb.btn.find({"projectId": projectId}).to_list(None)
         print(res)
         # if res is None or len(res)==0:
         #     return {'error': 'No btn group is found'}
         return BtnGroupCollection(btnGroups=res)
+    except Exception as e:
+        print('error')
+        return error_handler(e)
+
+@app.delete(
+    "/api/btns",
+    response_description="Delete project btn configuration data"
+)
+async def deleteProjectBtnHandler(projectId: ObjectId):  #str= Form()):
+    logger.debug(f"Delete: /api/btns?projectId={projectId}")
+    # logger.debug(video_config_obj)
+    try:
+        # print(video_config_obj.model_dump(by_alias=True)) # {'_id': '...', 'projectId': 'testId', 'name': '/Users/pengxi/video/numbered.mp4', 'path': '/Users/pengxi/video/numbered.mp4', 'additionalFields': []}
+        return await delete_project_objs_mongo(projectId, 'btn')
     except Exception as e:
         print('error')
         return error_handler(e)
@@ -231,7 +259,7 @@ async def postVideoHandler(video_config_obj: VideoFromClient):  #str= Form()):
     # logger.debug(video_config_obj)
     try:
         # print(video_config_obj.model_dump(by_alias=True)) # {'_id': '...', 'projectId': 'testId', 'name': '/Users/pengxi/video/numbered.mp4', 'path': '/Users/pengxi/video/numbered.mp4', 'additionalFields': []}
-       return await post_obj_mongo(video_config_obj, 'video')
+       return await post_one_obj_mongo(video_config_obj, 'video')
     except Exception as e:
         print('error')
         return error_handler(e)
@@ -248,7 +276,7 @@ async def editVideoHandler(new_video_obj: VideoFromClient):  #str= Form()):
     # logger.debug(video_config_obj)
     try:
         # print(video_config_obj.model_dump(by_alias=True)) # {'_id': '...', 'projectId': 'testId', 'name': '/Users/pengxi/video/numbered.mp4', 'path': '/Users/pengxi/video/numbered.mp4', 'additionalFields': []}
-        return await edit_obj_mongo(new_video_obj, 'video')
+        return await edit_one_obj_mongo(new_video_obj, 'video')
     except Exception as e:
         print('error')
         return error_handler(e)
@@ -263,25 +291,39 @@ async def deleteVideoHandler(id: ObjectId):  #str= Form()):
     # logger.debug(video_config_obj)
     try:
         # print(video_config_obj.model_dump(by_alias=True)) # {'_id': '...', 'projectId': 'testId', 'name': '/Users/pengxi/video/numbered.mp4', 'path': '/Users/pengxi/video/numbered.mp4', 'additionalFields': []}
-        return await delete_obj_mongo(id, 'video')
+        return await delete_one_obj_mongo(id, 'video')
 
     except Exception as e:
         print('error')
         return error_handler(e)
 
 
-@app.get("/api/video",
+@app.get("/api/videos",
          response_description="Find project video data",
          response_model=VideoCollection,
          response_model_by_alias=False)
 async def getProjectVideo(projectId: ObjectId):
-    logger.debug(f"Get: /api/video?projectId={projectId}")
+    logger.debug(f"Get: /api/videos?projectId={projectId}")
     try:
         res = await app.mongodb.video.find({"projectId": projectId}).to_list(None)
         print(res) # if no doc found, res is []
         # if res is None or len(res)==0: # if return error msg, will fail in return model validation
         #     return {'error': 'No video is found'}
         return VideoCollection(videos=res)
+    except Exception as e:
+        print('error')
+        return error_handler(e)
+
+@app.delete(
+    "/api/videos",
+    response_description="Delete project video data"
+)
+async def deleteProjectVideoHandler(projectId: ObjectId):  #str= Form()):
+    logger.debug(f"Delete: /api/videos?projectId={projectId}")
+    # logger.debug(video_config_obj)
+    try:
+        # print(video_config_obj.model_dump(by_alias=True)) # {'_id': '...', 'projectId': 'testId', 'name': '/Users/pengxi/video/numbered.mp4', 'path': '/Users/pengxi/video/numbered.mp4', 'additionalFields': []}
+        return await delete_project_objs_mongo(projectId, 'video')
     except Exception as e:
         print('error')
         return error_handler(e)
@@ -378,7 +420,7 @@ def error_handler(err):
 #         return error_handler(e)
 
 
-async def post_obj_mongo(obj, type):
+async def post_one_obj_mongo(obj, type):
     ''' type: 'project', 'video', 'btn', 'annotation' '''
     # obj = obj.model_dump(by_alias=False)
     # print(obj)
@@ -410,7 +452,7 @@ async def post_obj_mongo(obj, type):
         return {'info': f'{type} already exists'}
 
 
-async def edit_obj_mongo(obj, type):
+async def edit_one_obj_mongo(obj, type):
     print('edit obj called: ', obj)
     if type=='project':
         collection = app.mongodb.project
@@ -434,7 +476,7 @@ async def edit_obj_mongo(obj, type):
         return {'error': f'Editing {type} failed'}
     
 
-async def delete_obj_mongo(id, type):
+async def delete_one_obj_mongo(id, type):
     # print('delete obj called: ', obj)
     if type=='project':
         collection = app.mongodb.project
@@ -452,6 +494,22 @@ async def delete_obj_mongo(id, type):
     else:
         return {'error': f'Deleting {type} failed.'}
 
+
+async def delete_project_objs_mongo(projectId, type):
+    # print('delete obj called: ', obj)
+    if type=='video':
+        collection = app.mongodb.video
+    elif type=='btn':
+        collection = app.mongodb.btn
+    # elif type=='annotation':
+    #     collection = app.mongodb.annotation
+    
+    delete_result = await collection.delete_many({"projectId": ObjectId(projectId)})
+    print(delete_result, delete_result.deleted_count)
+    # if delete_result.deleted_count >= 1:
+    #     return {'success': f'Deleted {delete_result.deleted_count} {type} for project'}
+    # else:
+    return {'info': f'Deleted {delete_result.deleted_count} {type}s'}
 
 # async def get_all_of_collection_mongo(type):
 #     if type=='project':
