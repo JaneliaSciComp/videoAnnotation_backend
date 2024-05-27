@@ -276,7 +276,11 @@ async def editVideoHandler(new_video_obj: VideoFromClient):  #str= Form()):
     # logger.debug(video_config_obj)
     try:
         # print(video_config_obj.model_dump(by_alias=True)) # {'_id': '...', 'projectId': 'testId', 'name': '/Users/pengxi/video/numbered.mp4', 'path': '/Users/pengxi/video/numbered.mp4', 'additionalFields': []}
-        return await edit_one_obj_mongo(new_video_obj, 'video')
+        res = await edit_one_obj_mongo(new_video_obj, 'video')
+        if res.get('error'): # possibly there is no existing video thus editing failed
+            post_res = await post_one_obj_mongo(new_video_obj, 'video')
+            return post_res
+        return res
     except Exception as e:
         print('error')
         return error_handler(e)
