@@ -1,5 +1,5 @@
 from pydantic import BaseModel, BeforeValidator, Field
-from typing import Union, List
+from typing import Union, List, Dict
 from typing_extensions import Annotated
 from enum import Enum
 
@@ -74,4 +74,25 @@ class BtnGroupFromDB(BtnGroupFromClient):
     btnGroupId: ObjectId = Field(validation_alias="_id")
 
 class BtnGroupCollection(BaseModel):
-    btnGroups: List[BtnGroupFromDB]
+    btnGroups: List[BtnGroupFromDB]    
+
+class AnnotationFromClient(BaseModel):
+    id: ObjectId = Field(serialization_alias="_id")
+    videoId: ObjectId
+    frameNum: int = Field(ge=0)
+    type: BtnType
+    label: str = Field(max_length=100)
+    color: Union[str, None]  = Field(min_length=1, default=None) # TODO
+    data: Union[None, List[int], List[List[float]], Dict[str, float]]
+    groupIndex: Union[None, ObjectId]
+    isCrowd: Union[None, int]
+    pathes: Union[None, List[str]]
+
+class AnnotationCollectionFromClient(BaseModel):
+    annotations: List[AnnotationFromClient]
+
+class AnnotationFromDB(AnnotationFromClient):
+    id: ObjectId = Field(validation_alias="_id")
+
+class AnnotationCollectionFromDB(BaseModel):
+    annotations: List[AnnotationFromDB]
