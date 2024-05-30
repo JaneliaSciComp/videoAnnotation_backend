@@ -428,7 +428,7 @@ async def postFrameAnnotationHandler(annotation_objs: AnnotationCollectionFromCl
          response_description="Find all annotations of a frame",
          response_model=AnnotationCollectionFromDB,
          response_model_by_alias=False)
-async def getFrameAnnotation(frameNum: int, videoId: ObjectId):
+async def getFrameAnnotationHandler(frameNum: int, videoId: ObjectId):
     logger.debug(f"Get: /api/frameannotation?frameNum={frameNum}&videoId={videoId}")
     try:
         res = await app.mongodb.annotation.find({"frameNum": frameNum, "videoId": videoId}).to_list(None)
@@ -444,7 +444,7 @@ async def getFrameAnnotation(frameNum: int, videoId: ObjectId):
          response_description="Find all annotations of a project",
          response_model=AnnotationCollectionFromDB,
          response_model_by_alias=False)
-async def getProjectAnnotation(projectId: ObjectId):
+async def getProjectAnnotationHandler(projectId: ObjectId):
     logger.debug(f"Get: /api/projectannotation?projectId={projectId}")
     try:
         videoList = await app.mongodb.video.find({"projectId": projectId}).to_list(None) # if no doc found, return []

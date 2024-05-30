@@ -24,7 +24,7 @@ class AdditionalField(BaseModel):
     
 class VideoFromClient(BaseModel):
     videoId: ObjectId = Field(serialization_alias="_id")
-    projectId: Union[ObjectId, None] #if developer use VideoUploader solely to handle video, then no project
+    projectId: Union[ObjectId, None] = None #if developer use VideoUploader solely to handle video, then no project
     name: str = Field(max_length=200)
     path: str
     additionalFields: List[AdditionalField] = []
@@ -62,7 +62,7 @@ class EdgeData(BaseModel):
 
 class BtnGroupFromClient(BaseModel):
     btnGroupId: ObjectId = Field(serialization_alias="_id")
-    projectId: Union[ObjectId, None] #if developer use BtnGroupConroller solely to create btn, then no project
+    projectId: Union[ObjectId, None] = None #if developer use BtnGroupConroller solely to create btn, then no project
     groupType: BtnGroupType
     btnType: BtnType
     btnNum: int = Field(gt=0)
@@ -83,10 +83,10 @@ class AnnotationFromClient(BaseModel):
     type: BtnType
     label: str = Field(max_length=100)
     color: Union[str, None]  = Field(min_length=1, default=None) # TODO
-    data: Union[None, List[int], List[List[float]], Dict[str, float]]
-    groupIndex: Union[None, ObjectId]
-    isCrowd: Union[None, int]
-    pathes: Union[None, List[str]]
+    data: Union[None, List[int], List[List[float]], Dict[str, float], Dict[str, Dict[str, float]]] = None
+    groupIndex: Union[None, ObjectId] = None
+    isCrowd: Union[None, int] = None
+    pathes: Union[None, List[str]] = None
 
 class AnnotationCollectionFromClient(BaseModel):
     annotations: List[AnnotationFromClient]
