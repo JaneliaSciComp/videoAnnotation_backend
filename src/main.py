@@ -15,7 +15,7 @@ from configparser import ConfigParser
 # from typing import Union, List
 # from typing_extensions import Annotated
 from contextlib import asynccontextmanager
-from datamodel import ObjectId, ProjectFromClient, ProjectFromDB, ProjectCollection, BtnGroupFromClient, BtnGroupFromDB, BtnGroupCollection, VideoFromClient, VideoFromDB, VideoCollection, AdditionalField, AnnotationFromClient, AnnotationCollectionFromClient, AnnotationFromDB, AnnotationCollectionFromDB
+from datamodel import ObjectId, ProjectFromClient, ProjectFromDB, ProjectCollection, BtnGroupFromClient, BtnGroupFromDB, BtnGroupCollection, VideoFromClient, VideoFromDB, VideoCollection, AdditionalField, AnnotationFromClient, AnnotationCollectionFromClient, AnnotationCollectionFromDB, ProjectAnnotationCollectionFromDB
 
 
 #set up logger
@@ -409,7 +409,7 @@ async def postFrameAnnotationHandler(annotation_objs: AnnotationCollectionFromCl
     logger.debug("Post: /api/frameannotation")
     # logger.debug(btn_group_obj)
     try:
-        print(annotation_objs)
+        # print(annotation_objs)
         resList = []
         for obj in annotation_objs.annotations:
             res = await post_one_obj_mongo(obj, 'annotation')
@@ -442,17 +442,19 @@ async def getFrameAnnotationHandler(frameNum: int, videoId: ObjectId):
 
 @app.get("/api/projectannotation",
          response_description="Find all annotations of a project",
-         response_model=AnnotationCollectionFromDB,
+         response_model=ProjectAnnotationCollectionFromDB,
          response_model_by_alias=False)
 async def getProjectAnnotationHandler(projectId: ObjectId):
     logger.debug(f"Get: /api/projectannotation?projectId={projectId}")
     try:
-        videoList = await app.mongodb.video.find({"projectId": projectId}).to_list(None) # if no doc found, return []
-        res = await app.mongodb.annotation.find({"videoId": {"$in": videoList}}).to_list(None)
-        print(res) 
+        videoList = await app.mongodb.video.find({"projectId": projectId}, {"_id": 1}).to_list(None) # if no doc found, return []
+        videoIdList = [v['_id'] for v in videoList]
+        print(videoIdList)
+        res = await app.mongodb.annotation.find({"videoId": {"$in": videoIdList}}).to_list(None)
+        print(len(res)) 
         # if res is None or len(res)==0: # if return error msg, will fail in return model validation
         #     return {'error': 'No video is found'}
-        return AnnotationCollectionFromDB(annotations=res)
+        return ProjectAnnotationCollectionFromDB(projectId=projectId, videos=videoIdList, annotations=res)
     except Exception as e:
         print('error')
         return error_handler(e)
@@ -531,14 +533,14 @@ async def post_one_obj_mongo(obj, type):
         collection = app.mongodb.annotation
 
     existing_obj = await collection.find_one({"_id": id})
-    print('existing obj:', existing_obj)
+    # print('existing obj:', existing_obj)
     if existing_obj is None:
         new_obj = await collection.insert_one(
             obj.model_dump(by_alias=True)
             )
-        print(new_obj)
+        # print(new_obj)
         check = await collection.find_one({"_id": new_obj.inserted_id})
-        print('post check', check)
+        # print('post check', check)
         # print(new_video) # InsertOneResult('1715271938193', acknowledged=True)
         return {'success': f'Added {type} {new_obj.inserted_id}'}
     else:
@@ -546,7 +548,7 @@ async def post_one_obj_mongo(obj, type):
 
 
 async def edit_one_obj_mongo(obj, type):
-    print('edit obj called: ', obj)
+    # print('edit obj called: ', obj)
     if type=='project':
         collection = app.mongodb.project
     elif type=='video':
@@ -562,7 +564,7 @@ async def edit_one_obj_mongo(obj, type):
         {"$set": new_data},
         return_document=ReturnDocument.AFTER,
     )
-    print('update_result: ', update_result)
+    # print('update_result: ', update_result)
     if update_result is not None:
         return update_result
     else:
