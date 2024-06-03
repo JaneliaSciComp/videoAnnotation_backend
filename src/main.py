@@ -440,6 +440,32 @@ async def getFrameAnnotationHandler(frameNum: int, videoId: ObjectId):
         print('error')
         return error_handler(e)
 
+@app.post(
+    "/api/projectannotation",
+    response_description="Add new annotations of a project",
+    # response_model=VideoInfoObj,
+    # status_code=status.HTTP_201_CREATED,
+    # response_model_by_alias=False,
+)
+async def postProjectAnnotationHandler(annotation_objs: AnnotationCollectionFromClient): 
+    logger.debug("Post: /api/frameannotation")
+    # logger.debug(btn_group_obj)
+    try:
+        # print(annotation_objs)
+        resList = []
+        for obj in annotation_objs.annotations:
+            res = await post_one_obj_mongo(obj, 'annotation')
+            # print('post annotation res: ', res)
+            if res.get('info') == 'annotation already exists':
+                edit_res = await edit_one_obj_mongo(obj, 'annotation')
+                resList.append(edit_res)
+            else:
+                resList.append(res)
+        return resList
+    except Exception as e:
+        print('error')
+        return error_handler(e)
+
 @app.get("/api/projectannotation",
          response_description="Find all annotations of a project",
          response_model=ProjectAnnotationCollectionFromDB,
@@ -566,7 +592,7 @@ async def edit_one_obj_mongo(obj, type):
     )
     # print('update_result: ', update_result)
     if update_result is not None:
-        return update_result
+        return {'success': f'Edited {new_data['_id']}'} #update_result
     else:
         return {'error': f'Editing {type} failed'}
     
