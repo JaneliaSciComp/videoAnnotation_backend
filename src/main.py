@@ -585,14 +585,15 @@ async def edit_one_obj_mongo(obj, type):
         collection = app.mongodb.annotation
     
     new_data = obj.model_dump(by_alias=True)
+    id = new_data['_id']
     update_result = await collection.find_one_and_update(            
-        {"_id": new_data['_id']},
+        {"_id": id},
         {"$set": new_data},
         return_document=ReturnDocument.AFTER,
     )
     # print('update_result: ', update_result)
     if update_result is not None:
-        return {'success': f'Edited {new_data['_id']}'} #update_result
+        return {'success': f'Edited {id}'} #update_result
     else:
         return {'error': f'Editing {type} failed'}
     
