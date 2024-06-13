@@ -32,8 +32,12 @@ class VideoFromClient(BaseModel):
 class VideoFromDB(VideoFromClient):
     videoId: ObjectId = Field(validation_alias="_id")
 
-class VideoCollection(BaseModel):
+class VideoCollectionFromDB(BaseModel):
     videos: List[VideoFromDB]
+
+class VideoCollectionFromClient(BaseModel):
+    videos: List[VideoFromClient]
+    projectId: ObjectId
 
 class BtnGroupType(str, Enum):
     shape = 'shape'
@@ -73,8 +77,12 @@ class BtnGroupFromClient(BaseModel):
 class BtnGroupFromDB(BtnGroupFromClient):
     btnGroupId: ObjectId = Field(validation_alias="_id")
 
-class BtnGroupCollection(BaseModel):
-    btnGroups: List[BtnGroupFromDB]    
+class BtnGroupCollectionFromDB(BaseModel):
+    btnGroups: List[BtnGroupFromDB]
+
+class BtnGroupCollectionFromClient(BaseModel):
+    btnGroups: List[BtnGroupFromClient]
+    projectId: ObjectId     
 
 class AnnotationFromClient(BaseModel):
     id: ObjectId = Field(serialization_alias="_id")
@@ -101,3 +109,6 @@ class ProjectAnnotationCollectionFromDB(BaseModel):
     projectId: ObjectId
     videos: List[ObjectId]
     annotations: List[AnnotationFromDB]
+
+class ProjectAnnotationCollectionFromClient(ProjectAnnotationCollectionFromDB):
+    annotations: List[AnnotationFromClient]
