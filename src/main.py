@@ -16,7 +16,7 @@ from configparser import ConfigParser
 # from typing_extensions import Annotated
 from contextlib import asynccontextmanager
 from datamodel import ObjectId, ProjectFromClient, ProjectFromDB, ProjectCollection, BtnGroupFromClient, BtnGroupFromDB, BtnGroupCollectionFromDB, BtnGroupCollectionFromClient, VideoFromClient, VideoFromDB, VideoCollectionFromDB, VideoCollectionFromClient, AdditionalField, AnnotationFromClient, AnnotationCollectionFromClient, AnnotationCollectionFromDB, ProjectAnnotationCollectionFromDB, ProjectAnnotationCollectionFromClient
-
+from customized import getAdditionalDataReader, getAdditionalData
 
 #set up logger
 logger = logging.getLogger('video_annotation')
@@ -423,23 +423,7 @@ async def getFrame(num: int):
     except Exception as e:
         print('error')
         return error_handler(e)
-    
 
-@app.get('/api/additionaldata/{name}')
-async def getAdditionalData(name: str, videoId: str, num: int):
-    # num in request already -1, so start from 0
-    logger.debug(f'api/additional-data/{name}?videoId={videoId}&num={num}')
-    try:
-        # if num < 0 or num > frame_count-1:
-        if num < 0:
-            return {'error': 'Frame number out of bound'}
-        #TODO: read and return data
-        return 'currently no data'
-        # else:
-        #     return {'error': f'Frame {num+1} reached video end'}
-    except Exception as e:
-        print('error')
-        return error_handler(e)
 
 
 @app.post(
@@ -568,6 +552,63 @@ async def deleteProjectAnnotationHandler(projectId: ObjectId):  #str= Form()):
         # print(video_config_obj.model_dump(by_alias=True)) # {'_id': '...', 'projectId': 'testId', 'name': '/Users/pengxi/video/numbered.mp4', 'path': '/Users/pengxi/video/numbered.mp4', 'additionalFields': []}
         res = await delete_project_objs_mongo(projectId, 'annotation')
         return {'info': f'deleted {res.deleted_count} annotations'}
+    except Exception as e:
+        print('error')
+        return error_handler(e)
+
+
+
+
+additionalDataReaders = {} # {'trajectory': dataObj, ...}
+
+#TODO: need videoId?
+@app.get('/api/additionaldata/{name}')
+async def getAdditionalDataHandler(name: str, frameNum: int, range: int): #videoId: str
+    logger.debug(f'api/additionaldata/{name}?num={frameNum}&range={range}') #videoId={videoId}&
+    try:
+        if name not in additionalDataReaders:
+            return {'error': f'{name} data not found'}
+        
+        dataObj = additionalDataReaders[name]
+        res = getAdditionalData(dataObj, frameNum, range)
+        # res['name'] = name
+        print(res)
+        return res
+    except Exception as e:
+        print('error')
+        return error_handler(e)
+
+
+@app.post("/api/additionaldataname")
+async def postAdditionalNameToRetrieveHandler(obj: dict): 
+    # find path for these names, and read data file to memory
+    logger.debug("Post: /api/additionaldataname")
+    # logger.debug(btn_group_obj)
+    try:
+        global additionalDataReaders
+        videoId = obj['videoId']
+        namesToRetrieve = obj['names']
+        print(videoId, namesToRetrieve)
+        if len(namesToRetrieve)==0:
+            additionalDataReaders = {}
+            return {'info': 'Requested no additional data.'}
+        fieldsInfo = await app.mongodb.video.find_one({"_id": ObjectId(videoId)}, { "_id": 0, "additionalFields": 1 }) #{'addi...': [{}, {}]}
+        # print(fieldsInfo, fieldsInfo['additionalFields'])
+        if fieldsInfo is None:
+            return {'error': f'No addtional data related to this video'}
+        fieldList = list(filter(lambda x: x['name'] in namesToRetrieve, fieldsInfo['additionalFields'])) # return [] if no entry found
+        # print(fieldList)
+        if len(fieldList) == 0:
+            return {'error': f'No addtional data matching the requested ones.'}
+        elif len(fieldList) != len(namesToRetrieve):
+            return {'error': 'The number of addtional data found in DB does not match the number of names to retrieve',
+                    'inDB': fieldList,
+                    'toRetrieve': namesToRetrieve}
+        for field in fieldList:
+            dataObj = getAdditionalDataReader(field['name'], field['path'])
+            additionalDataReaders[field['name']] = dataObj
+        print(additionalDataReaders)
+        return {'info': f'{len(additionalDataReaders)} additional data readers ready'}
     except Exception as e:
         print('error')
         return error_handler(e)

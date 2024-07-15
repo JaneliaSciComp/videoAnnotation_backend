@@ -20,7 +20,9 @@ class ProjectCollection(BaseModel):
 
 class AdditionalField(BaseModel):
     name: str
-    value: Union[str, None] = None
+    path: Union[str, None] = None
+    # loadIn: Union[str, None] = None
+    # value: Union[str, None] = None
     
 class VideoFromClient(BaseModel):
     videoId: ObjectId = Field(serialization_alias="_id")
