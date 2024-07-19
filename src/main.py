@@ -571,8 +571,9 @@ async def getAdditionalDataHandler(name: str, frameNum: int, range: int): #video
         
         dataObj = additionalDataReaders[name]
         res = getAdditionalData(dataObj, frameNum, range)
+        # res['frameNum'] = frameNum
         # res['name'] = name
-        print(res)
+        print(res) # {range: , data: }
         return res
     except Exception as e:
         print('error')
