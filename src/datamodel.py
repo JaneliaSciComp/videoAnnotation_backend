@@ -21,12 +21,10 @@ class ProjectCollection(BaseModel):
 class AdditionalField(BaseModel):
     name: str
     path: Union[str, None] = None
-    # loadIn: Union[str, None] = None
-    # value: Union[str, None] = None
     
 class VideoFromClient(BaseModel):
     videoId: ObjectId = Field(serialization_alias="_id")
-    projectId: Union[ObjectId, None] = None #if developer use VideoUploader solely to handle video, then no project
+    projectId: Union[ObjectId, None] = None
     name: str = Field(max_length=200)
     path: str
     additionalFields: List[AdditionalField] = []
@@ -59,16 +57,16 @@ class Btn(BaseModel):
     index: int = Field(ge=0)
     btnType: BtnType
     label: str = Field(min_length=1, max_length=100)
-    color: str = Field(min_length=1) # TODO
+    color: str = Field(min_length=1)
     omitCrowdRadio: Union[bool, None] = Field(default=True)
 
 class EdgeData(BaseModel):
-    color: str = Field(min_length=1) # TODO
+    color: str = Field(min_length=1)
     edges: List[List[int]]
 
 class BtnGroupFromClient(BaseModel):
     btnGroupId: ObjectId = Field(serialization_alias="_id")
-    projectId: Union[ObjectId, None] = None #if developer use BtnGroupConroller solely to create btn, then no project
+    projectId: Union[ObjectId, None] = None
     groupType: BtnGroupType
     btnType: BtnType
     btnNum: int = Field(gt=0)
@@ -92,7 +90,7 @@ class AnnotationFromClient(BaseModel):
     frameNum: int = Field(ge=0)
     type: BtnType
     label: str = Field(max_length=100)
-    color: Union[str, None]  = Field(min_length=1, default=None) # TODO
+    color: Union[str, None]  = Field(min_length=1, default=None)
     data: Union[None, List[int], List[List[float]], Dict[str, float], Dict[str, Dict[str, float]]] = None
     groupIndex: Union[None, ObjectId] = None
     isCrowd: Union[None, int] = None
