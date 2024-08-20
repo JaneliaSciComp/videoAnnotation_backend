@@ -38,7 +38,7 @@ docker run -d \
 * -d: Run the container in detached mode.
 * --name mongodb: Assign a name to the container.
 * -p 27017:27017: Map port 27017 of the host to port 27017 of the container.
-* -e MONGO_INITDB_ROOT_USERNAME=rootuser: Set the MongoDB root username.
+* -e MONGO_INITDB_ROOT_USERNAME=admin: Set the MongoDB root username.
 * -e MONGO_INITDB_ROOT_PASSWORD=secret: Set the MongoDB root password.
 * -v /yourlocaldirectory/db:/data/db: Mount a local volume to persist data.
 
@@ -59,7 +59,7 @@ Create a new file in the root directory. Name it as database.int. Add these cont
 host=localhost
 port=27017
 dbname=mongodb
-user=rootuser
+user=admin
 password=secret
 ```
 
