@@ -13,6 +13,7 @@ from configparser import ConfigParser
 from contextlib import asynccontextmanager
 from datamodel import ObjectId, ProjectFromClient, ProjectFromDB, ProjectCollection, BtnGroupFromClient, BtnGroupFromDB, BtnGroupCollectionFromDB, BtnGroupCollectionFromClient, VideoFromClient, VideoFromDB, VideoCollectionFromDB, VideoCollectionFromClient, AdditionalField, AnnotationFromClient, AnnotationCollectionFromClient, AnnotationCollectionFromDB, ProjectAnnotationCollectionFromDB, ProjectAnnotationCollectionFromClient
 from customized import getAdditionalDataReader, getAdditionalData
+import asyncio
 
 logger = logging.getLogger('video_annotation')
 logger.setLevel(logging.DEBUG)
@@ -609,15 +610,36 @@ async def post_one_obj_mongo(obj, type):
     else:
         return {'info': f'{type} already exists'}
 
+lock_annotation_tag = None
+
 async def post_one_category_annotation_mongo(obj):
     collection = app.mongodb.annotation
-    existing_label = await collection.find_one({"videoId": ObjectId(obj.videoId), "type": 'category', "frameNum": obj.frameNum, "label": obj.label})
-    print('existing obj:', existing_label)
-    if existing_label is None:
-        new_obj = await collection.insert_one(obj.model_dump(by_alias=True))
-        return new_obj
+    global lock_annotation_tag
+    if lock_annotation_tag is None:
+        lock_annotation_tag = {"createdAt": datetime.now()}
+        
+        existing_label = await collection.find_one({"videoId": ObjectId(obj.videoId), "type": 'category', "frameNum": obj.frameNum, "label": obj.label})
+        if existing_label is None:
+            new_obj = await collection.insert_one(obj.model_dump(by_alias=True))
+            res = new_obj
+        else:
+            res = 'category annotation already exists'
+        lock_annotation_tag = None
+        return res
+    elif (datetime.now() - lock_annotation_tag['createdAt']).total_seconds() > 3:
+        lock_annotation_tag = {"createdAt": datetime.now()}
+        
+        existing_label = await collection.find_one({"videoId": ObjectId(obj.videoId), "type": 'category', "frameNum": obj.frameNum, "label": obj.label})
+        if existing_label is None:
+            new_obj = await collection.insert_one(obj.model_dump(by_alias=True))
+            res = new_obj
+        else:
+            res = 'category annotation already exists'
+        lock_annotation_tag = None
+        return res
     else:
-        return 'category annotation already exists'
+        await asyncio.sleep(0.1)
+        return await post_one_category_annotation_mongo(obj)
 
 
 async def edit_one_obj_mongo(obj, type):
