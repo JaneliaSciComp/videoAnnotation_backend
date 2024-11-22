@@ -105,6 +105,13 @@ class AnnotationFromDB(AnnotationFromClient):
 class AnnotationCollectionFromDB(BaseModel):
     annotations: List[AnnotationFromDB]
 
+class VideoAnnotationCollectionFromDB(BaseModel):
+    videoId: ObjectId
+    annotations: List[AnnotationFromDB]
+
+class VideoAnnotationCollectionFromClient(VideoAnnotationCollectionFromDB):
+    annotations: List[AnnotationFromClient]
+
 class ProjectAnnotationCollectionFromDB(BaseModel):
     projectId: ObjectId
     videos: List[ObjectId]

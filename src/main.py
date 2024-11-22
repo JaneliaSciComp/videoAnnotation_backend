@@ -11,8 +11,8 @@ from motor import motor_asyncio
 from pymongo import ReturnDocument
 from configparser import ConfigParser
 from contextlib import asynccontextmanager
-from datamodel import ObjectId, ProjectFromClient, ProjectFromDB, ProjectCollection, BtnGroupFromClient, BtnGroupFromDB, BtnGroupCollectionFromDB, BtnGroupCollectionFromClient, VideoFromClient, VideoFromDB, VideoCollectionFromDB, VideoCollectionFromClient, AdditionalField, AnnotationFromClient, AnnotationCollectionFromClient, AnnotationCollectionFromDB, ProjectAnnotationCollectionFromDB, ProjectAnnotationCollectionFromClient
-from customized import getAdditionalDataReader, getAdditionalData
+from datamodel import ObjectId, ProjectFromClient, ProjectFromDB, ProjectCollection, BtnGroupFromClient, BtnGroupFromDB, BtnGroupCollectionFromDB, BtnGroupCollectionFromClient, VideoFromClient, VideoFromDB, VideoCollectionFromDB, VideoCollectionFromClient, AdditionalField, AnnotationFromClient, AnnotationCollectionFromClient, AnnotationCollectionFromDB, ProjectAnnotationCollectionFromDB, ProjectAnnotationCollectionFromClient, VideoAnnotationCollectionFromDB, VideoAnnotationCollectionFromClient
+from customized import getAdditionalData
 import asyncio
 
 logger = logging.getLogger('video_annotation')
@@ -437,6 +437,39 @@ async def getProjectAnnotationHandler(projectId: ObjectId):
     except Exception as e:
         print('error')
         return error_handler(e)
+
+@app.post("/api/videoannotation")
+async def postVideoAnnotationHandler(annotationCollection: VideoAnnotationCollectionFromClient): 
+    logger.debug("Post: /api/videoannotation")
+    try:
+        videoId = annotationCollection.videoId
+        annotations = annotationCollection.annotations
+        delete_res = await delete_video_annotation_mongo(videoId)
+        insert_res = 0
+        if len(annotations) > 0:
+            insert_res = await post_video_annotations_mongo(annotations)
+        if insert_res == len(annotations):
+            return {'success': f'deleted {delete_res.deleted_count}, added {insert_res} annotations'}
+        else:
+            return {'error': f'deleted {delete_res.deleted_count}, added {insert_res} annotations, the uploaded data has {len(annotations)} annotations'}
+    except Exception as e:
+        print('error')
+        return error_handler(e)
+
+@app.get("/api/videoannotation",
+         response_description="Find all annotations of a video",
+         response_model=VideoAnnotationCollectionFromDB,
+         response_model_by_alias=False)
+async def getVideoAnnotationHandler(videoId: ObjectId):
+    logger.debug(f"Get: /api/videoannotation?videoId={videoId}")
+    try:
+        res = await app.mongodb.annotation.find({"videoId": ObjectId(videoId)}).sort("frameNum", 1).to_list(None)
+        print(len(res)) 
+        return VideoAnnotationCollectionFromDB(videoId=videoId, annotations=res)
+    except Exception as e:
+        print('error')
+        return error_handler(e)
+
     
 @app.post(
     "/api/annotation",
@@ -511,17 +544,30 @@ async def getAnnotationForChartHandler(videoId: ObjectId, frameNum: int, labels:
 
 additionalDataReaders = {}
 
-@app.get('/api/additionaldata/{name}')
-async def getAdditionalDataHandler(name: str, frameNum: int, range: int):
-    logger.debug(f'api/additionaldata/{name}?num={frameNum}&range={range}')
+@app.get('/api/additionaldata/{videoId}')
+async def getAdditionalDataHandler(videoId: ObjectId, names: str): 
+    logger.debug(f'api/additionaldata/{videoId}?names={names}')
     try:
-        if name not in additionalDataReaders:
-            return {'error': f'{name} data not found'}
+        namesToRetrieve = names.split('@@')
+        if len(namesToRetrieve)==0:
+            return {'error': 'No additional data requested.'}
         
-        dataObj = additionalDataReaders[name]
-        res = getAdditionalData(dataObj, frameNum, range)
-        print(res)
-        return res
+        fieldsInfo = await app.mongodb.video.find_one({"_id": ObjectId(videoId)}, { "_id": 0, "additionalFields": 1 })
+        if fieldsInfo is None:
+            return {'error': 'No addtional data related to this video'}
+        fieldList = list(filter(lambda x: x['name'] in namesToRetrieve, fieldsInfo['additionalFields']))
+        if len(fieldList) == 0:
+            return {'error': 'No addtional data matching the requested ones.'}
+        elif len(fieldList) != len(namesToRetrieve):
+            return {'error': 'The number of addtional data found in DB does not match the number of request data names',
+                    'inDB': fieldList,
+                    'toRetrieve': namesToRetrieve}
+        data = {}
+        for field in fieldList:
+            res = getAdditionalData(field['path'])
+            data[field['name']] = res
+        print(data)
+        return data
     except Exception as e:
         print('error')
         return error_handler(e)
@@ -558,20 +604,6 @@ async def postAdditionalNameToRetrieveHandler(obj: dict):
         return error_handler(e)
 
 
-@app.delete(
-    "/api/categoryannotation",
-    response_description="Delete category annotation interval"
-)
-async def deleteCategoryAnnotationIntervalHandler(videoId: ObjectId, labels: str, startFrame: int, endFrame: int):
-    logger.debug(f"Delete: /api/categoryannotation?videoId={videoId}&labels={labels.split('@@')}&startFrame={startFrame}&endFrame={endFrame}")
-    try:
-        print(labels, range)
-        labels = labels.split('@@')
-        res = await app.mongodb.annotation.delete_many({"videoId": videoId, "type": 'category', "frameNum": {"$gte": startFrame, "$lte": endFrame}, "label": {"$in": labels}})
-        return {'info': f'deleted {res.deleted_count} annotations'}
-    except Exception as e:
-        print('error')
-        return error_handler(e)
 
 
 
@@ -682,6 +714,38 @@ async def delete_one_obj_mongo(id, type):
     else:
         return {'error': f'Deleting {type} failed.'}
 
+async def delete_multiple_obj_mongo(type, ids):
+    if type=='project':
+        collection = app.mongodb.project
+    elif type=='video':
+        collection = app.mongodb.video
+    elif type=='btn':
+        collection = app.mongodb.btn
+    elif type=='annotation':
+        collection = app.mongodb.annotation
+    
+    delete_result = await collection.delete_many({"_id": {"$in": ids}})
+    print('delete mutiple obj called: ', delete_result, delete_result.deleted_count)
+    return delete_result
+
+async def delete_video_annotation_mongo(videoId):
+    collection = app.mongodb.annotation
+    delete_result = await collection.delete_many({"videoId": ObjectId(videoId)})
+    print('delete video anno called: ', delete_result, delete_result.deleted_count)
+    return delete_result
+
+async def post_video_annotations_mongo(annotations):
+    ''' 
+    This func should be called after deleting exsiting objs for the video in db, 
+    thus does not check if each obj exists before insertion 
+    '''
+    if len(annotations) == 0:
+        return {'success': f'Added 0 {type}'}
+    
+    collection = app.mongodb.annotation
+    res = await collection.insert_many([anno.model_dump(by_alias=True) for anno in annotations])
+    check = await collection.find({"videoId": ObjectId(annotations[0].videoId)}).to_list(None)
+    return len(check)
 
 async def delete_project_objs_mongo(projectId, type, videoIds=None):
     if type=='video':
