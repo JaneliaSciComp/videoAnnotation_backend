@@ -70,6 +70,9 @@ password=secret
 
 It's highly recommended to use a virtual environment manangement tool. Here we use a python built-in package called venv.
 
+> [!NOTE]
+> We have seen issues with Python 3.12+. For your information, the Python version we are using is 3.10.
+
 ```bash
 cd videoAnnotation_backend
 python3 -m venv env  # create env dir
