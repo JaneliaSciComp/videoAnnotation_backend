@@ -68,6 +68,14 @@ app.add_middleware(
 )
 
 
+@app.get("/test")
+async def testHandler():
+    logger.debug("Get: /test")
+    try:
+        return 'I am ready!'
+    except Exception as e:
+        print('error')
+        return error_handler(e)
 
 
 @app.post(

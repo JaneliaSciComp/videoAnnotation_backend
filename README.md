@@ -49,7 +49,9 @@ docker stop mongodb
 docker start mongodb
 ```
 
-### Step 2: create the database.int file
+### Step 2: Clone this repo
+
+### Step 3: create the database.int file
 
 We need to create the database.int file, so that the server can read the information from the file to connect to the database. Remember to add it to .gitignore if you don't want others to see your credential.
 
@@ -62,9 +64,6 @@ dbname=mongodb
 user=admin
 password=secret
 ```
-
-### Step 3: Clone this repo
-
 
 ### Step 4: Install dependencies
 
@@ -93,9 +92,10 @@ cd src
 uvicorn main:app --reload
 ```
 
-Now the server is running on http://127.0.0.1:8000. 
+Now the server is running on http://127.0.0.1:8000 and listening to the requests from the [client](https://github.com/JaneliaSciComp/videoAnnotation).
 
+To test whether the server is running, go to http://localhost:8000/test. You should see a message "I am ready!".
 
-### Step 6: Add customized data processing functions to customized.py 
+### (Optional) Step 6: Add customized data processing function to customized.py 
 
-This file is for the developer to add their own functions to process the additional data associated with each video. Please refer to the file for details.
+This file is for the developer to add their own function to process the additional data associated with each video if they have turned on the `additionalFields` attribute of `<VideoManager>` in the client. Please refer to the file for details.
