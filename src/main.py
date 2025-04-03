@@ -22,8 +22,6 @@ log_handler.setFormatter(logging.Formatter('%(asctime)s | %(levelname)s: %(messa
 logger.addHandler(log_handler)
 
 
-
-
 def config(section, filename='../database.ini'): 
     parser = ConfigParser()
     parser.read(filename)
@@ -40,7 +38,6 @@ def config(section, filename='../database.ini'):
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     try:
-        
         settings = config('mongodb')
         url = f"mongodb://{settings['user']}:{settings['password']}@{settings['host']}"
         client = motor_asyncio.AsyncIOMotorClient(url)
@@ -67,6 +64,15 @@ app.add_middleware(
     allow_headers=['*'],
 )
 
+@app.middleware("http")
+async def add_security_headers(request, call_next):
+    response = await call_next(request)
+    response.headers["Cross-Origin-Opener-Policy"] = "same-origin"
+    response.headers["Cross-Origin-Embedder-Policy"] = "require-corp"
+    return response
+
+
+
 
 @app.get("/test")
 async def testHandler():
@@ -76,7 +82,7 @@ async def testHandler():
     except Exception as e:
         print('error')
         return error_handler(e)
-
+    
 
 @app.post(
     "/api/project",
@@ -119,7 +125,6 @@ async def getAllProjectsHandler():
     logger.debug("Get: /api/projects")
     try:
         res = await app.mongodb.project.find().to_list(None)
-        print(res)
         return ProjectCollection(projects=res) 
     except Exception as e:
         print('error')
@@ -197,7 +202,6 @@ async def getProjectBtn(projectId: ObjectId):
     logger.debug(f"Get: /api/btns?projectId={projectId}")
     try:
         res = await app.mongodb.btn.find({"projectId": projectId}).to_list(None)
-        print(res)
         return BtnGroupCollectionFromDB(btnGroups=res)
     except Exception as e:
         print('error')
@@ -225,7 +229,6 @@ async def postProjectBtnHandler(btnGroupColletion: BtnGroupCollectionFromClient)
         projectId = btnGroupColletion.projectId
         btnGroups = btnGroupColletion.btnGroups
         delete_res = await delete_project_objs_mongo(projectId, 'btn')
-        print(delete_res.deleted_count)
         insert_res = 0
         if len(btnGroups) > 0:
             insert_res = await post_project_objs_mongo(btnGroups, 'btn')
@@ -283,9 +286,7 @@ async def deleteVideoHandler(id: ObjectId):
     logger.debug(f"Delete: /api/video?id={id}")
     try:
         deleteAnnotationRes = await delete_project_objs_mongo(None, 'annotation', [id])
-        print(deleteAnnotationRes.deleted_count)
         deleteVideoRes = await delete_one_obj_mongo(id, 'video')
-        print(deleteVideoRes, type(deleteVideoRes))
         if deleteVideoRes.get('error') is not None:
             raise HTTPException(status_code=500, detail=f'Deleting video failed.')
         return {'info': f'Deleted 1 video and {deleteAnnotationRes.deleted_count} annotations'}
@@ -329,7 +330,6 @@ async def postProjectVideoHandler(videoColletion: VideoCollectionFromClient):
         projectId = videoColletion.projectId
         videos = videoColletion.videos
         delete_res = await delete_project_objs_mongo(projectId, 'video')
-        print(delete_res.deleted_count)
         insert_res = 0
         if len(videos) > 0:
             insert_res = await post_project_objs_mongo(videos, 'video')
@@ -348,7 +348,6 @@ async def getVideoMetaHandler(id: ObjectId):
     logger.debug(f"Get: /api/videometa?id={id}")
     try:
         res = await app.mongodb.video.find_one({"_id": id}, { "_id": 0, "path": 1 })
-        print(res, res['path'])
         if res is None:
             raise HTTPException(status_code=404, detail='Video path not found')
         path = res['path']
@@ -373,7 +372,7 @@ async def getFrame(num: int):
         cap.set(cv.CAP_PROP_POS_FRAMES, num)
         ret, frame = cap.read()
         if ret:
-            ret, frame_1d = cv.imencode('.jpg', frame) 
+            ret, frame_1d = cv.imencode('.jpg', frame)
             headers = {'Content-Disposition': f'inline; filename=f_{num}.jpg'}
             return Response(frame_1d.tobytes() , headers=headers, media_type='image/jpg')
         else:
@@ -394,7 +393,6 @@ async def postProjectAnnotationHandler(annotationCollection: ProjectAnnotationCo
         videoIds = annotationCollection.videos
         annotations = annotationCollection.annotations
         delete_res = await delete_project_objs_mongo(projectId, 'annotation', videoIds)
-        print(delete_res.deleted_count)
         insert_res = 0
         if len(annotations) > 0:
             insert_res = await post_project_objs_mongo(annotations, 'annotation', videoIds)
@@ -416,7 +414,6 @@ async def getProjectAnnotationHandler(projectId: ObjectId):
         videoList = await app.mongodb.video.find({"projectId": projectId}, {"_id": 1}).to_list(None)
         videoIdList = [v['_id'] for v in videoList]
         res = await app.mongodb.annotation.find({"videoId": {"$in": videoIdList}}).sort("frameNum", 1).to_list(None)
-        print(len(res)) 
         return ProjectAnnotationCollectionFromDB(projectId=projectId, videos=videoIdList, annotations=res)
     except Exception as e:
         print('error')
@@ -448,7 +445,6 @@ async def getVideoAnnotationHandler(videoId: ObjectId):
     logger.debug(f"Get: /api/videoannotation?videoId={videoId}")
     try:
         res = await app.mongodb.annotation.find({"videoId": ObjectId(videoId)}).sort("frameNum", 1).to_list(None)
-        print(len(res)) 
         return VideoAnnotationCollectionFromDB(videoId=videoId, annotations=res)
     except Exception as e:
         print('error')
@@ -485,7 +481,6 @@ async def getAnnotationForChartHandler(videoId: ObjectId, frameNum: int, labels:
              {"data": 0, "groupIndex": 0, "isCrowd": 0, "pathes": 0}) \
             .sort({"frameNum": 1}) \
             .to_list(None)
-        print(len(annotation_list))
         return annotation_list
     except Exception as e:
         print('error')
@@ -521,7 +516,6 @@ async def getAdditionalDataHandler(videoId: ObjectId, names: str):
     except Exception as e:
         print('error')
         return error_handler(e)
-
 
 
 
@@ -639,7 +633,6 @@ async def delete_one_obj_mongo(id, type):
         collection = app.mongodb.annotation
     
     delete_result = await collection.delete_one({"_id": ObjectId(id)})
-    print(delete_result.deleted_count)
     if delete_result.deleted_count == 1:
         return {'success': f'Deleted {type} {id}'}
     else:
@@ -656,7 +649,6 @@ async def delete_multiple_obj_mongo(type, ids):
         collection = app.mongodb.annotation
     
     delete_result = await collection.delete_many({"_id": {"$in": ids}})
-    print('delete mutiple obj called: ', delete_result, delete_result.deleted_count)
     return delete_result
 
 async def delete_video_annotation_mongo(videoId):
@@ -690,7 +682,6 @@ async def delete_project_objs_mongo(projectId, type, videoIds=None):
     else:
         videoIds = [ObjectId(vid) for vid in videoIds]
         delete_result = await collection.delete_many({"videoId": {"$in": videoIds}})
-    print(delete_result)
     return delete_result
 
 
@@ -721,3 +712,4 @@ async def post_project_objs_mongo(objs, type, videoIds=None):
     return len(check)
     
 
+    
