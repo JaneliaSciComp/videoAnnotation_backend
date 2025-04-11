@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 from sys import getsizeof
 from datetime import datetime
 import logging
@@ -241,7 +242,6 @@ async def postProjectBtnHandler(btnGroupColletion: BtnGroupCollectionFromClient)
         return error_handler(e)
 
 
-cap = None
 
 @app.post(
     "/api/video",
@@ -342,6 +342,8 @@ async def postProjectVideoHandler(videoColletion: VideoCollectionFromClient):
         return error_handler(e)
     
 
+cap = None
+next_frame_num = 0
 
 @app.get("/api/videometa")
 async def getVideoMetaHandler(id: ObjectId):
@@ -351,13 +353,18 @@ async def getVideoMetaHandler(id: ObjectId):
         if res is None:
             raise HTTPException(status_code=404, detail='Video path not found')
         path = res['path']
-        global cap
+        
+        global cap, next_frame_num
         if not os.path.exists(path):
             raise HTTPException(status_code=404, detail='Video file is not found')
         if cap:
             cap.release()
         cap = cv.VideoCapture(path)
-        return {'frame_count': cap.get(cv.CAP_PROP_FRAME_COUNT), 'fps': cap.get(cv.CAP_PROP_FPS)}
+        frame_count = cap.get(cv.CAP_PROP_FRAME_COUNT)
+        fps = cap.get(cv.CAP_PROP_FPS)
+        
+        next_frame_num = 0
+        return {'frame_count': frame_count, 'fps': fps}
     except Exception as e:
         print('error')
         return error_handler(e)
@@ -369,8 +376,11 @@ async def getFrame(num: int):
     try:
         if num < 0:
             raise HTTPException(status_code=416, detail='Frame number out of bound')
-        cap.set(cv.CAP_PROP_POS_FRAMES, num)
+        global next_frame_num
+        if num==0 or num!=next_frame_num:
+            cap.set(cv.CAP_PROP_POS_FRAMES, num)
         ret, frame = cap.read()
+        next_frame_num = num + 1
         if ret:
             ret, frame_1d = cv.imencode('.jpg', frame)
             headers = {'Content-Disposition': f'inline; filename=f_{num}.jpg'}
@@ -450,7 +460,7 @@ async def getVideoAnnotationHandler(videoId: ObjectId):
         print('error')
         return error_handler(e)
 
-
+   
 @app.delete(
     "/api/projectannotation",
     response_description="Delete project annotation data"
