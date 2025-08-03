@@ -51,11 +51,11 @@ docker start mongodb
 
 ### Step 2: Clone this repo
 
-### Step 3: create the database.int file
+### Step 3: create the database.ini file
 
-We need to create the database.int file, so that the server can read the information from the file to connect to the database. Remember to add it to .gitignore if you don't want others to see your credential.
+We need to create the database.ini file, so that the server can read the information from the file to connect to the database. Remember to add it to .gitignore if you don't want others to see your credential.
 
-Create a new file in the root directory. Name it as database.int. Add these contents to the file:
+Create a new file in the root directory. Name it as database.ini. Add these contents to the file:
 ```
 [mongodb]
 host=localhost
